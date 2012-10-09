@@ -1,0 +1,5 @@
+Create 'CREATE TABLE' statements with ease and types. With support for emitting copy.
+
+Call csv2table with -h for help.
+
+Requires python.

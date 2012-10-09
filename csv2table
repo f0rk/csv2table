@@ -1,0 +1,216 @@
+#!/usr/bin/env python
+
+import os
+import re
+import csv
+import sys
+import decimal
+import datetime
+import argparse
+
+TEXT = "text"
+INTEGER = "integer"
+NUMERIC = "numeric"
+DATETIME = "timestamp"
+BIGINTEGER = "biginteger"
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--file", "-f", help="csv file", required=True)
+parser.add_argument("--copy", "-y", help="issue a copy statement, for import",
+                    action="store_true", default=False)
+parser.add_argument("--backslash", "-s", help="when issuing copy, use \copy",
+                    action="store_true", default=False)
+parser.add_argument("--delimiter", "-d", help="csv delimiter", default=",")
+parser.add_argument("--table", "-t", help="table name", default=None)
+parser.add_argument("--schema", help="schema name", default=None)
+parser.add_argument("--integer", "-i", help="integer columns",
+                    action="store_true", default=False)
+parser.add_argument("--numeric", "-n", help="numeric parsing",
+                    action="store_true", default=False)
+parser.add_argument("--timestamp", "-p", help="timestamp parsing",
+                    action="store_true", default=False)
+parser.add_argument("--mogrify", "-m", help="clean names",
+                    action="store_true", default=False)
+parser.add_argument("--lower", "-l", help="lowercase names",
+                    action="store_true", default=False)
+parser.add_argument("--drop", "-x", help="drop table first",
+                    action="store_true", default=False)
+parser.add_argument("--skip-parsing", help="skip type parsing for cols")
+parser.add_argument("--big-integer", "-b", help="use bigint instead of int",
+                    default=False, action="store_true")
+
+args = parser.parse_args()
+
+# check that our given file exists
+if not args.file or not os.path.exists(args.file):
+    sys.stderr.write("file '{}' does not exist.\n".format(args.file))
+    sys.exit(1)
+
+# name cleaner function
+empties = ""
+def clean_name(name):
+    global empties
+    name = re.sub(r'[^a-zA-Z0-9_]', "_", name)
+    name = re.sub(r'_+', "_", name)
+    if args.lower:
+        name = name.lower()
+    if not name:
+        empties += "_"
+        name = empties
+    return name
+
+# construct a table name from the file name
+if args.table is None:
+    path_parts = os.path.split(args.file)
+    file_name = path_parts[1]
+
+    pieces = file_name.split(".")
+    if len(pieces) > 1:
+        pieces = pieces[:-1]
+
+    table_name = ".".join(pieces)
+
+    if args.mogrify:
+        table_name = clean_name(table_name)
+else:
+    table_name = args.table
+
+# determine any columns we should not type parse
+skip_type_parsing = []
+if args.skip_parsing:
+    cols = args.skip_parsing.split(",")
+    skip_type_parsing = [c.strip() for c in cols]
+
+# get a handle on things
+fp = open(args.file)
+
+# try and figure out the type of the given value
+def get_type(value, args):
+    # date formats will be crossed with time formats
+    date_formats = [
+        "%Y-%m-%d",
+        "%Y%m%d",
+        "%m/%d/%Y",
+        "%b %d, %Y",
+    ]
+
+    time_formats = [
+        "%H:%M:%S",
+        "%H:%M:%S %z",
+        "%H:%M:%S %Z",
+        "%I:%M:%S %p",
+        "%I:%M:%S %P",
+    ]
+
+    datetime_formats = []
+    for date_format in date_formats:
+        datetime_formats.append(date_format)
+        for time_format in time_formats:
+            datetime_formats.append(date_format + " " + time_format)
+            datetime_formats.append(date_format + "T" + time_format)
+
+    # first the timestamp
+    if args.timestamp:
+        for timestamp_format in datetime_formats:
+            try:
+                datetime.datetime.strptime(value, timestamp_format)
+                if not (len(value) != 8 and timestamp_format == "%Y%m%d"):
+                    return DATETIME
+            except ValueError:
+                pass
+
+    # then integers
+    if args.integer:
+        try:
+            int(value)
+            if args.big_integer:
+                return BIGINTEGER
+            else:
+                return INTEGER
+        except ValueError:
+            pass
+
+    # then numeric
+    if args.numeric:
+        try:
+            decimal.Decimal(value)
+            return NUMERIC
+        except decimal.InvalidOperation:
+            pass
+    
+    # we got nothing
+    return TEXT
+
+# some help to pass tabs
+delimiter = args.delimiter
+if delimiter in ("\\t", "\\\\t"):
+    delimiter = "\t"
+
+# start processing the file
+first = True
+header_mapping = {}
+reader = csv.DictReader(fp, delimiter=delimiter)
+
+# figure out the column name and types
+for record in reader:
+    fields = reader.fieldnames
+
+    if args.mogrify:
+        for field in fields:
+            header_mapping[field] = clean_name(field)
+    else:
+        # strip quotes to work with less chance of failure.
+        header_mapping = {f: f.replace('"', "") for f in fields}
+
+    # build a table with some hopefully reasonable types
+    columns = []
+    for field in fields:
+        value = record[field]
+
+        # typed columns (with maybe nice names)
+        if field in skip_type_parsing \
+                or header_mapping[field] in skip_type_parsing:
+            column_type = TEXT
+        else:
+            column_type = get_type(value, args)
+        column = (header_mapping[field], column_type)
+        columns.append(column)
+
+    # enough of this boring crap
+    break
+
+# generate our name clause
+name_clause = ""
+if args.schema:
+    name_clause += '"{}".'.format(args.schema)
+name_clause += '"{}"'.format(table_name)
+
+# generate our columns clause
+columns_fragments = []
+for column_name, column_type in columns:
+    columns_fragments.append('    "{}" {}'.format(column_name, column_type))
+columns_clause = ",\n".join(columns_fragments)
+
+# maybe print out a drop
+if args.drop:
+    print('drop table if exists {};'.format(name_clause))
+
+# print out our table create statement
+print('create table {} ('.format(name_clause))
+print(columns_clause)
+print(");")
+
+# print out our copy statement
+if args.copy:
+    
+    # generate our options clause
+    options = ("'{}' with csv header delimiter '{}'"
+               .format(args.file, args.delimiter))
+
+    copy = "copy"
+    if args.backslash:
+        copy = r'\copy'
+
+    print('{} {} from {};'.format(copy, name_clause, options))
+
