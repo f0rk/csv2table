@@ -206,7 +206,7 @@ if args.copy:
     
     # generate our options clause
     options = ("'{}' with csv header delimiter '{}'"
-               .format(args.file, args.delimiter))
+               .format(args.file, delimiter))
 
     copy = "copy"
     if args.backslash:
