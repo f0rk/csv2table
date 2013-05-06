@@ -85,7 +85,7 @@ if args.skip_parsing:
     skip_type_parsing = [c.strip() for c in cols]
 
 # get a handle on things
-fp = open(args.file)
+fp = open(args.file, "rU")
 
 # try and figure out the type of the given value
 def get_type(value, args):
