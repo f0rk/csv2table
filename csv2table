@@ -39,6 +39,8 @@ parser.add_argument("--drop", "-x", help="drop table first",
 parser.add_argument("--skip-parsing", help="skip type parsing for cols")
 parser.add_argument("--big-integer", "-b", help="use bigint instead of int",
                     default=False, action="store_true")
+parser.add_argument("--no-create", "-z", help="don't issue create table",
+                    default=False, action="store_true")
 
 args = parser.parse_args()
 
@@ -193,13 +195,14 @@ for column_name, column_type in columns:
 columns_clause = ",\n".join(columns_fragments)
 
 # maybe print out a drop
-if args.drop:
+if args.drop and not args.no_create:
     print('drop table if exists {};'.format(name_clause))
 
 # print out our table create statement
-print('create table {} ('.format(name_clause))
-print(columns_clause)
-print(");")
+if not args.no_create:
+    print('create table {} ('.format(name_clause))
+    print(columns_clause)
+    print(");")
 
 # print out our copy statement
 if args.copy:
