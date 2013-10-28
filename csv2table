@@ -24,6 +24,8 @@ parser.add_argument("--backslash", "-s", help="when issuing copy, use \copy",
 parser.add_argument("--delimiter", "-d", help="csv delimiter", default=",")
 parser.add_argument("--table", "-t", help="table name", default=None)
 parser.add_argument("--schema", help="schema name", default=None)
+parser.add_argument("--create-schema", help="create the named schema",
+                    action="store_true", default=False)
 parser.add_argument("--integer", "-i", help="integer columns",
                     action="store_true", default=False)
 parser.add_argument("--numeric", "-n", help="numeric parsing",
@@ -47,6 +49,11 @@ args = parser.parse_args()
 # check that our given file exists
 if not args.file or not os.path.exists(args.file):
     sys.stderr.write("file '{}' does not exist.\n".format(args.file))
+    sys.exit(1)
+
+# check that a schema was given if create schema was requested
+if args.create_schema and args.schema is None:
+    sys.stderr.write("--create-schema given but --schema not provided.\n")
     sys.exit(1)
 
 # name cleaner function
@@ -193,6 +200,10 @@ columns_fragments = []
 for column_name, column_type in columns:
     columns_fragments.append('    "{}" {}'.format(column_name, column_type))
 columns_clause = ",\n".join(columns_fragments)
+
+# maybe print our a schema create
+if args.create_schema:
+    print('create schema "{}";'.format(args.schema))
 
 # maybe print out a drop
 if args.drop and not args.no_create:
