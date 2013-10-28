@@ -45,6 +45,8 @@ parser.add_argument("--no-create", "-z", help="don't issue create table",
                     default=False, action="store_true")
 parser.add_argument("--fix-duplicates", help="handle duplicate column names by appending an increasing suffix",
                     default=False, action="store_true")
+parser.add_argument("--transaction", "-1", help="run in a transaction",
+                    default=False, action="store_true")
 
 args = parser.parse_args()
 
@@ -216,6 +218,10 @@ for column_name, column_type in columns:
     columns_fragments.append('    "{}" {}'.format(column_name, column_type))
 columns_clause = ",\n".join(columns_fragments)
 
+# maybe print a begin
+if args.transaction:
+    print("begin;")
+
 # maybe print our a schema create
 if args.create_schema:
     print('create schema "{}";'.format(args.schema))
@@ -242,4 +248,8 @@ if args.copy:
         copy = r'\copy'
 
     print('{} {} from {};'.format(copy, name_clause, options))
+
+# maybe print out a commit
+if args.transaction:
+    print("commit;")
 
