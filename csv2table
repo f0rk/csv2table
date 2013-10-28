@@ -43,6 +43,8 @@ parser.add_argument("--big-integer", "-b", help="use bigint instead of int",
                     default=False, action="store_true")
 parser.add_argument("--no-create", "-z", help="don't issue create table",
                     default=False, action="store_true")
+parser.add_argument("--fix-duplicates", help="handle duplicate column names by appending an increasing suffix",
+                    default=False, action="store_true")
 
 args = parser.parse_args()
 
@@ -60,6 +62,7 @@ if args.create_schema and args.schema is None:
 empties = ""
 def clean_name(name):
     global empties
+    global seen_names
     name = re.sub(r'[^a-zA-Z0-9_]', "_", name)
     name = re.sub(r'_+', "_", name)
     if args.lower:
@@ -162,6 +165,7 @@ header_mapping = {}
 reader = csv.DictReader(fp, delimiter=delimiter)
 
 # figure out the column name and types
+seen_column_names = {}
 for record in reader:
     fields = reader.fieldnames
 
@@ -183,7 +187,18 @@ for record in reader:
             column_type = TEXT
         else:
             column_type = get_type(value, args)
-        column = (header_mapping[field], column_type)
+
+        column_name = header_mapping[field]
+        if args.fix_duplicates:
+            if column_name in seen_column_names:
+                original_name = column_name
+                suffix = seen_column_names[original_name] + 1
+                column_name = "{}_{}".format(original_name, suffix)
+                seen_column_names[original_name] = suffix
+            else:
+                seen_column_names[column_name] = 0
+
+        column = (column_name, column_type)
         columns.append(column)
 
     # enough of this boring crap
