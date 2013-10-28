@@ -107,6 +107,7 @@ def get_type(value, args):
         "%Y%m%d",
         "%m/%d/%Y",
         "%b %d, %Y",
+        "%m/%d/%y",
     ]
 
     time_formats = [
