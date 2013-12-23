@@ -30,6 +30,8 @@ parser.add_argument("--integer", "-i", help="integer columns",
                     action="store_true", default=False)
 parser.add_argument("--numeric", "-n", help="numeric parsing",
                     action="store_true", default=False)
+parser.add_argument("--temporary", "-o", help="use a temporary table",
+                    action="store_true", default=False)
 parser.add_argument("--timestamp", "-p", help="timestamp parsing",
                     action="store_true", default=False)
 parser.add_argument("--mogrify", "-m", help="clean names",
@@ -233,7 +235,10 @@ if args.drop and not args.no_create:
 
 # print out our table create statement
 if not args.no_create:
-    print('create table {} ('.format(name_clause))
+    if args.temporary:
+        print('create temporary table {} ('.format(name_clause))
+    else:
+        print('create table {} ('.format(name_clause))
     print(columns_clause)
     print(");")
 
