@@ -47,6 +47,8 @@ parser.add_argument("--fix-duplicates", help="handle duplicate column names by a
                     default=False, action="store_true")
 parser.add_argument("--transaction", "-1", help="run in a transaction",
                     default=False, action="store_true")
+parser.add_argument("--temporary", help="create a temporary table",
+                    default=False, action="store_true")
 
 args = parser.parse_args()
 
@@ -234,7 +236,10 @@ if args.drop and not args.no_create:
 
 # print out our table create statement
 if not args.no_create:
-    print('create table {} ('.format(name_clause))
+    table_clause = "create table"
+    if args.temporary:
+        table_clause = "create temporary table"
+    print("{} {} (".format(table_clause, name_clause))
     print(columns_clause)
     print(");")
 
