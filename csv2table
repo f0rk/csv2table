@@ -65,13 +65,14 @@ empties = ""
 def clean_name(name):
     global empties
     global seen_names
+    name = name.strip()
     name = re.sub(r'[^a-zA-Z0-9_]', "_", name)
     name = re.sub(r'_+', "_", name)
     if args.lower:
         name = name.lower()
     if not name:
         empties += "_"
-        name = empties
+        name = empties + ""
     return name
 
 # construct a table name from the file name
