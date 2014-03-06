@@ -67,7 +67,6 @@ if args.create_schema and args.schema is None:
 empties = ""
 def clean_name(name):
     global empties
-    global seen_names
     name = name.strip()
     name = re.sub(r'[^a-zA-Z0-9_]', "_", name)
     name = re.sub(r'_+', "_", name)
