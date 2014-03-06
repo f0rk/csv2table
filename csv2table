@@ -50,6 +50,8 @@ parser.add_argument("--transaction", "-1", help="run in a transaction",
                     default=False, action="store_true")
 parser.add_argument("--temporary", help="create a temporary table",
                     default=False, action="store_true")
+parser.add_argument("--file-column", help="add a column to the created table which will contain the name of the file the data was loaded from.",
+                    default=None)
 
 args = parser.parse_args()
 
@@ -172,6 +174,11 @@ reader = csv.DictReader(fp, delimiter=delimiter, quotechar=args.quote)
 
 # figure out the column name and types
 seen_column_names = {}
+
+# if a file name column was requested, pre-seed that name here
+if args.file_column is not None:
+    seen_column_names[args.file_column] = 0
+
 for record in reader:
     fields = reader.fieldnames
 
@@ -216,11 +223,21 @@ if args.schema:
     name_clause += '"{}".'.format(args.schema)
 name_clause += '"{}"'.format(table_name)
 
-# generate our columns clause
+# generate our columns clause for table create
 columns_fragments = []
 for column_name, column_type in columns:
     columns_fragments.append('    "{}" {}'.format(column_name, column_type))
+
+# if we requested a column containing the filename, add that in
+if args.file_column is not None:
+    file_column_frag = ("    \"{}\" text default '{}'"
+                        .format(args.file_column, args.file))
+    columns_fragments = [file_column_frag] + columns_fragments
+
 columns_clause = ",\n".join(columns_fragments)
+
+# generate the target clause to emit with the copy statement
+targets_clause = ", ".join(['"{}"'.format(c[0]) for c in columns])
 
 # maybe print a begin
 if args.transaction:
@@ -254,7 +271,7 @@ if args.copy:
     if args.backslash:
         copy = r'\copy'
 
-    print('{} {} from {};'.format(copy, name_clause, options))
+    print('{} {}({}) from {};'.format(copy, name_clause, targets_clause, options))
 
 # maybe print out a commit
 if args.transaction:
