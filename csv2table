@@ -22,6 +22,7 @@ parser.add_argument("--copy", "-y", help="issue a copy statement, for import",
 parser.add_argument("--backslash", "-s", help="when issuing copy, use \copy",
                     action="store_true", default=False)
 parser.add_argument("--delimiter", "-d", help="csv delimiter", default=",")
+parser.add_argument("--quote", "-q", help="csv quote", default='"')
 parser.add_argument("--table", "-t", help="table name", default=None)
 parser.add_argument("--schema", help="schema name", default=None)
 parser.add_argument("--create-schema", help="create the named schema",
@@ -168,7 +169,7 @@ if delimiter in ("\\t", "\\\\t"):
 # start processing the file
 first = True
 header_mapping = {}
-reader = csv.DictReader(fp, delimiter=delimiter)
+reader = csv.DictReader(fp, delimiter=delimiter, quotechar=args.quote)
 
 # figure out the column name and types
 seen_column_names = {}
@@ -247,8 +248,8 @@ if not args.no_create:
 if args.copy:
     
     # generate our options clause
-    options = ("'{}' with csv header delimiter '{}'"
-               .format(args.file, delimiter))
+    options = ("'{}' with csv header delimiter '{}' quote '{}'"
+               .format(args.file, delimiter, args.quote))
 
     copy = "copy"
     if args.backslash:
