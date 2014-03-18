@@ -12,6 +12,7 @@ TEXT = "text"
 INTEGER = "integer"
 NUMERIC = "numeric"
 DATETIME = "timestamp"
+DATETIMETZ = "timestamptz"
 BIGINTEGER = "biginteger"
 
 
@@ -32,6 +33,8 @@ parser.add_argument("--integer", "-i", help="integer columns",
 parser.add_argument("--numeric", "-n", help="numeric parsing",
                     action="store_true", default=False)
 parser.add_argument("--timestamp", "-p", help="timestamp parsing",
+                    action="store_true", default=False)
+parser.add_argument("--tz", help="use timestamptz instead of timestamp",
                     action="store_true", default=False)
 parser.add_argument("--mogrify", "-m", help="clean names",
                     action="store_true", default=False)
@@ -136,7 +139,10 @@ def get_type(value, args):
             try:
                 datetime.datetime.strptime(value, timestamp_format)
                 if not (len(value) != 8 and timestamp_format == "%Y%m%d"):
-                    return DATETIME
+                    if args.tz:
+                        return DATETIMETZ
+                    else:
+                        return DATETIME
             except ValueError:
                 pass
 
