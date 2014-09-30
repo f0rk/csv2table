@@ -2,4 +2,5 @@ Create 'CREATE TABLE' statements with ease and types. With support for emitting 
 
 Call csv2table with -h for help.
 
-Requires python.
+Requires python. If you wish to use this command with redshift, boto library
+must be installed as well.

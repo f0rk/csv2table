@@ -7,6 +7,7 @@ import sys
 import decimal
 import datetime
 import argparse
+import urlparse
 
 TEXT = "text"
 INTEGER = "integer"
@@ -47,14 +48,33 @@ parser.add_argument("--big-integer", "-b", help="use bigint instead of int",
                     default=False, action="store_true")
 parser.add_argument("--no-create", "-z", help="don't issue create table",
                     default=False, action="store_true")
-parser.add_argument("--fix-duplicates", help="handle duplicate column names by appending an increasing suffix",
+parser.add_argument("--fix-duplicates",
+                    help=("handle duplicate column names by appending an "
+                          "increasing suffix"),
                     default=False, action="store_true")
 parser.add_argument("--transaction", "-1", help="run in a transaction",
                     default=False, action="store_true")
 parser.add_argument("--temporary", help="create a temporary table",
                     default=False, action="store_true")
-parser.add_argument("--file-column", help="add a column to the created table which will contain the name of the file the data was loaded from.",
+parser.add_argument("--file-column",
+                    help=("add a column to the created table which will contain "
+                          "the name of the file the data was loaded from"),
                     default=None)
+parser.add_argument("--redshift",
+                    help=("generate a copy command for redshift. takes an "
+                          "optional argument, a file to look for s3 "
+                          "credentials/bucket in. To try and read from the "
+                          "environment, specify <ENV>"),
+                    default=None)
+parser.add_argument("--redshift-bucket",
+                    help=("when generating a copy command for redshift, using "
+                          "this option specifies the bucket to store the file "
+                          "in, if requested. This will override any bucket found "
+                          "by the --redshift option."),
+                    default=None)
+parser.add_argument("--redshift-upload",
+                    help="upload the specified file to redshift",
+                    action="store_true", default=False)
 
 args = parser.parse_args()
 
@@ -66,6 +86,16 @@ if not args.file or not os.path.exists(args.file):
 # check that a schema was given if create schema was requested
 if args.create_schema and args.schema is None:
     sys.stderr.write("--create-schema given but --schema not provided.\n")
+    sys.exit(1)
+
+# if --redshift-upload is specified, and --redshift is not set, force it to
+# "<ENV>"
+if args.redshift_upload and not args.redshift:
+    args.redshift = "<ENV>"
+
+# --backslash is incompatible with --redshift
+if args.backslash and args.redshift:
+    sys.stderr.write("--backslash is incompatible with --redshift*")
     sys.exit(1)
 
 # name cleaner function
@@ -124,6 +154,7 @@ def get_type(value, args):
         "%H:%M:%S %Z",
         "%I:%M:%S %p",
         "%I:%M:%S %P",
+        "%H:%M",
     ]
 
     datetime_formats = []
@@ -223,6 +254,107 @@ for record in reader:
     # enough of this boring crap
     break
 
+# if redshift was requested, attempt to figure out our credentials and bucket.
+# note that we'll potentially need access to the credentials below, so define
+# some variables up here
+aws_access_key_id = None
+aws_secret_access_key = None
+s3_path = None
+
+if args.redshift:
+
+    def read_redshift_file(path):
+        aws_access_key_id = None
+        aws_secret_access_key = None
+        s3_bucket = None
+        s3_transfer_bucket = None
+        
+        if os.path.exists(path):
+
+            # open and "parse" file. because this file can actually contain
+            # no headers, we can't really use ConfigParser
+            with open(path, "r") as rfp:
+                for line in rfp.readlines():
+                    if line.startswith("#"):
+                        continue
+
+                    id_match = re.search(r'(AWSAccessKeyId|aws_access_key_id|access_key|s3_account_id)\s*=\s*(.+)$', line)
+                    if id_match:
+                        aws_access_key_id = id_match.groups()[1].strip()
+
+                    key_match = re.search(r'(AWSSecretKey|aws_secret_access_key|secret_key|s3_private_key)\s*=\s*(.+)$', line)
+                    if key_match:
+                        aws_secret_access_key = key_match.groups()[1].strip()
+
+                    bucket_match = re.search(r's3_bucket\s*=\s*(.+)$', line)
+                    if bucket_match:
+                        s3_bucket = bucket_match.groups()[0].strip()
+
+                    transfer_match = re.search(r's3_transfer_bucket\s*=\s*(.+)$', line)
+                    if transfer_match:
+                        s3_transfer_bucket = transfer_match.groups()[0].strip()
+
+        return aws_access_key_id, aws_secret_access_key, (s3_transfer_bucket or s3_bucket)
+
+    if args.redshift == "<ENV>":
+        aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
+        aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+        s3_bucket = os.getenv("S3_BUCKET")
+
+        # maybe we didn't find a key, look for a credentials specified in the
+        # env
+        if aws_access_key_id is None:
+            credentials_path = os.getenv("AWS_CREDENTIAL_FILE")
+            maybe_key_id, maybe_key, maybe_bucket = read_redshift_file(credentials_path)
+            if aws_access_key_id is None:
+                aws_access_key_id = maybe_key_id
+            if aws_secret_access_key is None:
+                aws_secret_access_key = maybe_key
+            if s3_bucket is None:
+                s3_bucket = maybe_bucket
+    else:
+        aws_access_key_id, aws_secret_access_key, s3_bucket = read_redshift_file(args.redshift)
+
+    if args.redshift_bucket:
+        s3_bucket = args.redshift_bucket
+
+    # we need to have access credentials and a bucket, abort if not found
+    if aws_access_key_id is None:
+        sys.stderr.write("unable to determine aws_access_key_id")
+        sys.exit(1)
+
+    if aws_secret_access_key is None:
+        sys.stderr.write("unable to determine aws_secret_access_key")
+        sys.exit(1)
+
+    if s3_bucket is None:
+        sys.stderr.write("unable to determine s3_bucket")
+        sys.exit(1)
+
+    # now, build a url from our components. we will then parse this url to get
+    # our bucket and key name components, because the bucket may have been
+    # specified with a prefix
+    s3_path = "s3://" + os.path.join(s3_bucket, os.path.basename(args.file))
+    parsed = urlparse.urlparse(s3_path)
+    real_bucket = parsed.netloc
+    real_key = parsed.path.lstrip("/")
+
+    # if redshift upload was requested, attempt to upload the file
+    if args.redshift_upload:
+
+        # we import boto here so it's not always required
+        from boto.s3.connection import S3Connection
+
+        # connect to s3
+        conn = S3Connection(aws_access_key_id, aws_secret_access_key)
+
+        # get bukkit
+        bucket = conn.get_bucket(real_bucket)
+
+        # make key, put file
+        key = bucket.new_key(real_key)
+        key.set_contents_from_filename(args.file)
+
 # generate our name clause
 name_clause = ""
 if args.schema:
@@ -270,8 +402,14 @@ if not args.no_create:
 if args.copy:
     
     # generate our options clause
-    options = ("'{}' with csv header delimiter '{}' quote '{}'"
-               .format(args.file, delimiter, args.quote))
+    if args.redshift:
+        options = ("'{}' with credentials 'aws_access_key_id={};aws_secret_access_key={}' "
+                   "csv ignoreheader 1 delimiter '{}' quote '{}'"
+                   .format(s3_path, aws_access_key_id, aws_secret_access_key,
+                           delimiter, args.quote))
+    else:
+        options = ("'{}' with csv header delimiter '{}' quote '{}'"
+                   .format(args.file, delimiter, args.quote))
 
     copy = "copy"
     if args.backslash:
