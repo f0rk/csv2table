@@ -78,6 +78,9 @@ parser.add_argument("--redshift-upload",
                     action="store_true", default=False)
 parser.add_argument("--gzip", help="the file is in gzip format",
                     action="store_true", default=False)
+parser.add_argument("--missing-headers",
+                     help="file is missing headers, make up column names",
+                     action="store_true", default=False)
 
 args = parser.parse_args()
 
@@ -237,7 +240,7 @@ for record in reader:
 
     # build a table with some hopefully reasonable types
     columns = []
-    for field in fields:
+    for i, field in enumerate(fields):
         value = record[field]
 
         # typed columns (with maybe nice names)
@@ -247,15 +250,18 @@ for record in reader:
         else:
             column_type = get_type(value, args)
 
-        column_name = header_mapping[field]
-        if args.fix_duplicates:
-            if column_name in seen_column_names:
-                original_name = column_name
-                suffix = seen_column_names[original_name] + 1
-                column_name = "{}_{}".format(original_name, suffix)
-                seen_column_names[original_name] = suffix
-            else:
-                seen_column_names[column_name] = 0
+        if args.missing_headers:
+            column_name = "col_{}".format(i)
+        else:
+            column_name = header_mapping[field]
+            if args.fix_duplicates:
+                if column_name in seen_column_names:
+                    original_name = column_name
+                    suffix = seen_column_names[original_name] + 1
+                    column_name = "{}_{}".format(original_name, suffix)
+                    seen_column_names[original_name] = suffix
+                else:
+                    seen_column_names[column_name] = 0
 
         column = (column_name, column_type)
         columns.append(column)
