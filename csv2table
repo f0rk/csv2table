@@ -4,6 +4,7 @@ import os
 import re
 import csv
 import sys
+import gzip
 import decimal
 import datetime
 import argparse
@@ -75,6 +76,8 @@ parser.add_argument("--redshift-bucket",
 parser.add_argument("--redshift-upload",
                     help="upload the specified file to redshift",
                     action="store_true", default=False)
+parser.add_argument("--gzip", help="the file is in gzip format",
+                    action="store_true", default=False)
 
 args = parser.parse_args()
 
@@ -119,6 +122,8 @@ if args.table is None:
 
     pieces = file_name.split(".")
     if len(pieces) > 1:
+        if pieces[-1] == "gz":
+            pieces.pop()
         pieces = pieces[:-1]
 
     table_name = ".".join(pieces)
@@ -135,7 +140,11 @@ if args.skip_parsing:
     skip_type_parsing = [c.strip() for c in cols]
 
 # get a handle on things
-fp = open(args.file, "rU")
+if args.gzip:
+    fp = gzip.open(args.file, "rU")
+    fp._read_eof = lambda *a, **k: None
+else:
+    fp = open(args.file, "rU")
 
 # try and figure out the type of the given value
 def get_type(value, args):
@@ -407,9 +416,15 @@ if args.copy:
                    "csv ignoreheader 1 delimiter '{}' quote '{}'"
                    .format(s3_path, aws_access_key_id, aws_secret_access_key,
                            delimiter, args.quote))
+        if args.gzip:
+            options += " gzip"
     else:
-        options = ("'{}' with csv header delimiter '{}' quote '{}'"
-                   .format(args.file, delimiter, args.quote))
+        if args.gzip:
+            start = "program 'gunzip < {}'".format(args.file)
+        else:
+            start = "'{}'".format(args.file)
+        options = start + (" with csv header delimiter '{}' quote '{}'"
+                           .format(delimiter, args.quote))
 
     copy = "copy"
     if args.backslash:
