@@ -13,6 +13,7 @@ import urlparse
 TEXT = "text"
 INTEGER = "integer"
 NUMERIC = "numeric"
+DATE = "date"
 DATETIME = "timestamp"
 DATETIMETZ = "timestamptz"
 BIGINTEGER = "biginteger"
@@ -35,6 +36,8 @@ parser.add_argument("--integer", "-i", help="integer columns",
 parser.add_argument("--numeric", "-n", help="numeric parsing",
                     action="store_true", default=False)
 parser.add_argument("--timestamp", "-p", help="timestamp parsing",
+                    action="store_true", default=False)
+parser.add_argument("--date", help="date parsing",
                     action="store_true", default=False)
 parser.add_argument("--tz", help="use timestamptz instead of timestamp",
                     action="store_true", default=False)
@@ -176,7 +179,17 @@ def get_type(value, args):
             datetime_formats.append(date_format + " " + time_format)
             datetime_formats.append(date_format + "T" + time_format)
 
-    # first the timestamp
+    # first the date
+    if args.date:
+        for date_format in date_formats:
+            try:
+                datetime.datetime.strptime(value, date_format)
+                if not (len(value) != 8 and date_format == "%Y%m%d"):
+                    return DATE
+            except ValueError:
+                pass
+
+    # then timestamp
     if args.timestamp:
         for timestamp_format in datetime_formats:
             try:
