@@ -4,3 +4,152 @@ Call csv2table with -h for help.
 
 Requires python. If you wish to use this command with redshift, boto library
 must be installed as well.
+
+Examples:
+
+Imagine we have a file, colors.csv, with the following data:
+
+Id,Color,Color Name,Description,Hex #,Inventory,Add Date
+1,red,Red,Having the color of blood,#f00,0.25,2014-10-16
+2,green,Green,Having the color of growing grass,#0f0,10.18,2014-08-25
+3,blue,Blue,Having the color of the clear sky,#00f,4.67,2014-09-17
+
+To emit a basic statement to create the table:
+~$ csv2table --file /tmp/colors.csv
+
+create table "colors" (
+    "Id" text,
+    "Color" text,
+    "Color Name" text,
+    "Description" text,
+    "Hex #" text,
+    "Inventory" text,
+    "Add Date" text
+);
+
+To emit a basic statement to create the table and import the data:
+~$ csv2table --file /tmp/colors.csv --copy
+
+create table "colors" (
+    "Id" text,
+    "Color" text,
+    "Color Name" text,
+    "Description" text,
+    "Hex #" text,
+    "Inventory" text,
+    "Add Date" text
+);
+copy "colors"("Id", "Color", "Color Name", "Description", "Hex #", "Inventory", "Add Date") from '/tmp/colors.csv' with csv header delimiter ',' quote '"';
+
+If the server cannot see the file, you will need to use --backslash, to use psql's \copy feature:
+~$ csv2table --file /tmp/colors.csv --copy --backslash
+
+create table "colors" (
+    "Id" text,
+    "Color" text,
+    "Color Name" text,
+    "Description" text,
+    "Hex #" text,
+    "Inventory" text,
+    "Add Date" text
+);
+\copy "colors"("Id", "Color", "Color Name", "Description", "Hex #", "Inventory", "Add Date") from '/tmp/colors.csv' with csv header delimiter ',' quote '"';
+
+Of course, these names are awful to work with in SQL, so let's fix that:
+~$ csv2table --file /tmp/colors.csv --copy --backslash --lower --mogrify
+
+create table "colors" (
+    "id" text,
+    "color" text,
+    "color_name" text,
+    "description" text,
+    "hex_" text,
+    "inventory" text,
+    "add_date" text
+);
+\copy "colors"("id", "color", "color_name", "description", "hex_", "inventory", "add_date") from '/tmp/colors.csv' with csv header delimiter ',' quote '"';
+
+If you want the table to be in a particular schema, use the --schema argument:
+~$ csv2table --file /tmp/colors.csv --copy --backslash --lower --mogrify --schema ryan
+
+create table "ryan"."colors" (
+    "id" text,
+    "color" text,
+    "color_name" text,
+    "description" text,
+    "hex_" text,
+    "inventory" text,
+    "add_date" text
+);
+\copy "ryan"."colors"("id", "color", "color_name", "description", "hex_", "inventory", "add_date") from '/tmp/colors.csv' with csv header delimiter ',' quote '"';
+
+You can also drop the table as well:
+~$ csv2table --file /tmp/colors.csv --copy --backslash --lower --mogrify --schema ryan
+
+drop table if exists "ryan"."colors";
+create table "ryan"."colors" (
+    "id" text,
+    "color" text,
+    "color_name" text,
+    "description" text,
+    "hex_" text,
+    "inventory" text,
+    "add_date" text
+);
+\copy "ryan"."colors"("id", "color", "color_name", "description", "hex_", "inventory", "add_date") from '/tmp/colors.csv' with csv header delimiter ',' quote '"';
+
+However, I'd advise running that in a trasanction:
+~$ csv2table --file /tmp/colors.csv --copy --backslash --lower --mogrify --schema ryan -1
+
+begin;
+drop table if exists "ryan"."colors";
+create table "ryan"."colors" (
+    "id" text,
+    "color" text,
+    "color_name" text,
+    "description" text,
+    "hex_" text,
+    "inventory" text,
+    "add_date" text
+);
+\copy "ryan"."colors"("id", "color", "color_name", "description", "hex_", "inventory", "add_date") from '/tmp/colors.csv' with csv header delimiter ',' quote '"';
+commit;
+
+Redshift is supported, too. You'll either need to AWS_ACCESS_KEY_ID and
+AWS_SECRET_ACCESS_KEY or create an AWS_CREDENTIAL_FILE or create a config file,
+somewhere, with the following information:
+
+# csv2table redshift config
+s3_account_id = XXXX
+s3_private_key = XXXX
+s3_bucket = ryan
+
+You can then use it like the following, assuming you've specified everything in
+your env:
+~$ csv2table --file /tmp/colors.csv --copy --lower --mogrify --schema ryan --redshift-upload --redshift-bucket ryan
+
+create table "ryan"."colors" (
+    "id" text,
+    "color" text,
+    "color_name" text,
+    "description" text,
+    "hex_" text,
+    "inventory" text,
+    "add_date" text
+);
+copy "ryan"."colors"("id", "color", "color_name", "description", "hex_", "inventory", "add_date") from 's3://ryan/colors.csv' with credentials 'aws_access_key_id=XXXX;aws_secret_access_key=XXXX' csv ignoreheader 1 delimiter ',' quote '"';
+
+With a config file:
+~$ csv2table --file /tmp/colors.csv --copy --lower --mogrify --schema ryan --redshift ~/.aws/credentials --redshift-upload --redshift-bucket ryan
+
+create table "ryan"."colors" (
+    "id" text,
+    "color" text,
+    "color_name" text,
+    "description" text,
+    "hex_" text,
+    "inventory" text,
+    "add_date" text
+);
+copy "ryan"."colors"("id", "color", "color_name", "description", "hex_", "inventory", "add_date") from 's3://ryan/colors.csv' with credentials 'aws_access_key_id=XXXX;aws_secret_access_key=XXXX' csv ignoreheader 1 delimiter ',' quote '"';
+
