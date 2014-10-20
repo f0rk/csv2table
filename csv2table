@@ -4,11 +4,11 @@ import os
 import re
 import csv
 import sys
-import gzip
 import decimal
 import datetime
 import argparse
 import urlparse
+import subprocess
 
 TEXT = "text"
 INTEGER = "integer"
@@ -147,8 +147,8 @@ if args.skip_parsing:
 
 # get a handle on things
 if args.gzip:
-    fp = gzip.open(args.file, "rU")
-    fp._read_eof = lambda *a, **k: None
+    process = subprocess.Popen(["zcat", args.file], stdout=subprocess.PIPE)
+    fp = process.stdout
 else:
     fp = open(args.file, "rU")
 
@@ -281,6 +281,10 @@ for record in reader:
 
     # enough of this boring crap
     break
+
+# if we're using gzip, kill the process we started
+if args.gzip:
+    process.kill()
 
 # if redshift was requested, attempt to figure out our credentials and bucket.
 # note that we'll potentially need access to the credentials below, so define
