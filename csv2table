@@ -472,7 +472,12 @@ if args.create_schema:
 
 # maybe print out a drop
 if args.drop and not args.no_create:
-    print('drop table if exists {};'.format(name_clause))
+
+    # redshift doesn't know about if exists, sigh
+    if args.redshift:
+        print('drop table {};'.format(name_clause))
+    else:
+        print('drop table if exists {};'.format(name_clause))
 
 # print out our table create statement
 if not args.no_create:
