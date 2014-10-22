@@ -216,7 +216,8 @@ def get_type(value, args):
             datetime_formats.append(date_format + " " + time_format)
             datetime_formats.append(date_format + "T" + time_format)
 
-            redshift_time_formats[date_format + " " + time_format] = (
+            redshift_datetime_formats[date_format] = redshift_date_formats[date_format]
+            redshift_datetime_formats[date_format + " " + time_format] = (
                 redshift_date_formats[date_format]
                 + " "
                 + redshift_time_formats[time_format]
