@@ -107,6 +107,19 @@ if args.backslash and args.redshift:
     sys.stderr.write("--backslash is incompatible with --redshift*")
     sys.exit(1)
 
+# redshift doesn't like plain NUMERIC, need to give it some precision otherwise
+# it loses decimals places...
+if args.redshift:
+    NUMERIC = "numeric(24, 8)"
+
+
+# we assume that for redshift, the default date format is 'YYYY-MM-DD'.
+# however, we may automatically detect a different one, so try to inform
+# redshift of our choices.
+redshift_date_format = "YYYY-MM-DD"
+redshift_time_format = "HH:MI:SS"
+redshift_datetime_format = "YYYY-MM-DD HH:MI:SS"
+
 # name cleaner function
 empties = ""
 def clean_name(name):
@@ -154,6 +167,11 @@ else:
 
 # try and figure out the type of the given value
 def get_type(value, args):
+
+    global redshift_date_format
+    global redshift_time_format
+    global redshift_datetime_format
+
     # date formats will be crossed with time formats
     date_formats = [
         "%Y-%m-%d",
@@ -172,6 +190,25 @@ def get_type(value, args):
         "%H:%M",
     ]
 
+    redshift_date_formats = {
+        "%Y-%m-%d": "YYYY-MM-DD",
+        "%Y%m%d": "YYYYMMDD",
+        "%m/%d/%Y": "MM/DD/YYYY",
+        "%b %d, %Y": "MON DD, YYYY",
+        "%m/%d/%y": "MM/DD/YY",
+    }
+
+    redshift_time_formats = {
+        "%H:%M:%S": "HH:MM:SS",
+        "%H:%M:%S %z": "HH:MM:SS", # XXX
+        "%H:%M:%S %Z": "HH:MM:SS", # XXX
+        "%I:%M:%S %p": "HH12:MM:SS AM",
+        "%I:%M:%S %P": "HH12:MM:SS AM",
+        "%H:%M": "HH:MM",
+    }
+
+    redshift_datetime_formats = {}
+
     datetime_formats = []
     for date_format in date_formats:
         datetime_formats.append(date_format)
@@ -179,12 +216,23 @@ def get_type(value, args):
             datetime_formats.append(date_format + " " + time_format)
             datetime_formats.append(date_format + "T" + time_format)
 
+            redshift_time_formats[date_format + " " + time_format] = (
+                redshift_date_formats[date_format]
+                + " "
+                + redshift_time_formats[time_format]
+            )
+
     # first the date
     if args.date:
         for date_format in date_formats:
             try:
                 datetime.datetime.strptime(value, date_format)
                 if not (len(value) != 8 and date_format == "%Y%m%d"):
+
+                    # hacks, but we'll sort of assume everything is in the same
+                    # format
+                    redshift_date_format = redshift_date_formats[date_format]
+
                     return DATE
             except ValueError:
                 pass
@@ -195,6 +243,11 @@ def get_type(value, args):
             try:
                 datetime.datetime.strptime(value, timestamp_format)
                 if not (len(value) != 8 and timestamp_format == "%Y%m%d"):
+
+                    # hacks, but we'll sort of assume everything is in the same
+                    # format
+                    redshift_time_format = redshift_datetime_formats[timestamp_format]
+
                     if args.tz:
                         return DATETIMETZ
                     else:
@@ -436,9 +489,11 @@ if args.copy:
     # generate our options clause
     if args.redshift:
         options = ("'{}' with credentials 'aws_access_key_id={};aws_secret_access_key={}' "
-                   "csv ignoreheader 1 delimiter '{}' quote '{}'"
+                   "csv ignoreheader 1 delimiter '{}' quote '{}' dateformat "
+                   "'{}' timeformat '{}'"
                    .format(s3_path, aws_access_key_id, aws_secret_access_key,
-                           delimiter, args.quote))
+                           delimiter, args.quote, redshift_date_format,
+                           redshift_datetime_format))
         if args.gzip:
             options += " gzip"
     else:
