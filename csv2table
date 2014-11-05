@@ -82,8 +82,10 @@ parser.add_argument("--redshift-upload",
 parser.add_argument("--gzip", help="the file is in gzip format",
                     action="store_true", default=False)
 parser.add_argument("--missing-headers",
-                     help="file is missing headers, make up column names",
-                     action="store_true", default=False)
+                    help="file is missing headers, make up column names",
+                    action="store_true", default=False)
+parser.add_argument("--cine", help="create if not exists when creating a table",
+                    action="store_true", default=False)
 
 args = parser.parse_args()
 
@@ -485,6 +487,8 @@ if not args.no_create:
     table_clause = "create table"
     if args.temporary:
         table_clause = "create temporary table"
+    if args.cine:
+        table_clause += " if not exists"
     print("{} {} (".format(table_clause, name_clause))
     print(columns_clause)
     print(");")
