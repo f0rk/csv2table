@@ -84,7 +84,7 @@ create table "ryan"."colors" (
 \copy "ryan"."colors"("id", "color", "color_name", "description", "hex_", "inventory", "add_date") from '/tmp/colors.csv' with csv header delimiter ',' quote '"';
 
 You can also drop the table as well:
-~$ csv2table --file /tmp/colors.csv --copy --backslash --lower --mogrify --schema ryan
+~$ csv2table --file /tmp/colors.csv --copy --backslash --lower --mogrify --schema ryan --drop
 
 drop table if exists "ryan"."colors";
 create table "ryan"."colors" (
