@@ -10,6 +10,7 @@ import argparse
 import urlparse
 import subprocess
 
+
 TEXT = "text"
 INTEGER = "integer"
 NUMERIC = "numeric"
@@ -17,6 +18,8 @@ DATE = "date"
 DATETIME = "timestamp"
 DATETIMETZ = "timestamptz"
 BIGINTEGER = "biginteger"
+EMPTY = None # special case, used as placeholder for null upgrades
+
 
 
 parser = argparse.ArgumentParser()
@@ -85,6 +88,10 @@ parser.add_argument("--missing-headers",
                     help="file is missing headers, make up column names",
                     action="store_true", default=False)
 parser.add_argument("--cine", help="create if not exists when creating a table",
+                    action="store_true", default=False)
+parser.add_argument("--keep-going", help=("read the entire file instead of the "
+                                          "first two rows, trading performance "
+                                          "for better type detection"),
                     action="store_true", default=False)
 
 args = parser.parse_args()
@@ -297,27 +304,39 @@ seen_column_names = {}
 if args.file_column is not None:
     seen_column_names[args.file_column] = 0
 
+columns = []
+
 for record in reader:
     fields = reader.fieldnames
 
-    if args.mogrify:
-        for field in fields:
-            header_mapping[field] = clean_name(field)
-    else:
-        # strip quotes to work with less chance of failure.
-        header_mapping = {f: f.replace('"', "") for f in fields}
+    if not header_mapping:
+        if args.mogrify:
+            for field in fields:
+                header_mapping[field] = clean_name(field)
+        else:
+            # strip quotes to work with less chance of failure.
+            header_mapping = {f: f.replace('"', "") for f in fields}
+
+    # by default, every column will be unset
+    if not columns:
+        columns = [None] * len(fields)
 
     # build a table with some hopefully reasonable types
-    columns = []
     for i, field in enumerate(fields):
         value = record[field]
 
         # typed columns (with maybe nice names)
         if field in skip_type_parsing \
                 or header_mapping[field] in skip_type_parsing:
-            column_type = TEXT
+            if not value:
+                column_type = EMPTY
+            else:
+                column_type = TEXT
         else:
-            column_type = get_type(value, args)
+            if not value:
+                column_type = EMPTY
+            else:
+                column_type = get_type(value, args)
 
         if args.missing_headers:
             column_name = "col_{}".format(i)
@@ -332,11 +351,48 @@ for record in reader:
                 else:
                     seen_column_names[column_name] = 0
 
-        column = (column_name, column_type)
-        columns.append(column)
+        # not seen, use what we've got
+        if columns[i] is None:
+            columns[i] = (column_name, column_type)
+
+        # column seen previously, figure out if the type needs to be adjusted
+        else:
+
+            # certain types will be automatically "broadened"
+            upgrades = {
+                INTEGER: [NUMERIC],
+                BIGINTEGER: [NUMERIC],
+                DATE: [DATETIME, DATETIMETZ],
+            }
+
+            prior_type = columns[i][1]
+            if prior_type != column_type:
+
+                # empty is null for any type, if the previous type was empty,
+                # upgrade to anything
+                if prior_type == EMPTY:
+                    columns[i] = (column_name, column_type)
+
+                # if current type is empty, don't change whichever type we've
+                # already guessed
+                elif column_type == EMPTY:
+                    pass
+
+                # see if the type can be broadened
+                elif prior_type in upgrades and column_type in upgrades[prior_type]:
+                    columns[i] = (column_name, column_type)
+
+                # see if the type is broad, to avoid narrowing
+                elif column_type in upgrades and prior_type in upgrades[column_type]:
+                    pass
+
+                # otherwise, force to text
+                else:
+                    columns[i] = (column_name, TEXT)
 
     # enough of this boring crap
-    break
+    if not args.keep_going:
+        break
 
 # if we're using gzip, kill the process we started
 if args.gzip:
@@ -452,6 +508,8 @@ name_clause += '"{}"'.format(table_name)
 # generate our columns clause for table create
 columns_fragments = []
 for column_name, column_type in columns:
+    if column_type == EMPTY:
+        column_type = TEXT
     columns_fragments.append('    "{}" {}'.format(column_name, column_type))
 
 # if we requested a column containing the filename, add that in
