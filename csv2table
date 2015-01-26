@@ -52,6 +52,8 @@ parser.add_argument("--lower", "-l", help="lowercase names",
                     action="store_true", default=False)
 parser.add_argument("--drop", "-x", help="drop table first",
                     action="store_true", default=False)
+parser.add_argument("--truncate", help="truncate table first",
+                    action="store_true", default=False)
 parser.add_argument("--skip-parsing", help="skip type parsing for cols")
 parser.add_argument("--big-integer", "-b", help="use bigint instead of int",
                     default=False, action="store_true")
@@ -552,6 +554,10 @@ if not args.no_create:
     print("{} {} (".format(table_clause, name_clause))
     print(columns_clause)
     print(");")
+
+# print out our truncate statement
+if args.truncate:
+    print("truncate table {};".format(name_clause))
 
 # print out our copy statement
 if args.copy:
