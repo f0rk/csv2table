@@ -21,6 +21,8 @@ BIGINTEGER = "biginteger"
 EMPTY = None # special case, used as placeholder for null upgrades
 
 
+# without this, we may encounter fields larger than can be read
+csv.field_size_limit(sys.maxsize)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--file", "-f", help="csv file", required=True)
