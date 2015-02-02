@@ -426,19 +426,19 @@ if args.redshift:
                     if line.startswith("#"):
                         continue
 
-                    id_match = re.search(r'(AWSAccessKeyId|aws_access_key_id|access_key|s3_account_id)\s*=\s*(.+)$', line)
+                    id_match = re.search(r'(AWSAccessKeyId|aws_access_key_id|access_key|s3.account_id)\s*=\s*(.+)$', line)
                     if id_match:
                         aws_access_key_id = id_match.groups()[1].strip()
 
-                    key_match = re.search(r'(AWSSecretKey|aws_secret_access_key|secret_key|s3_private_key)\s*=\s*(.+)$', line)
+                    key_match = re.search(r'(AWSSecretKey|aws_secret_access_key|secret_key|s3.private_key)\s*=\s*(.+)$', line)
                     if key_match:
                         aws_secret_access_key = key_match.groups()[1].strip()
 
-                    bucket_match = re.search(r's3_bucket\s*=\s*(.+)$', line)
+                    bucket_match = re.search(r's3.bucket\s*=\s*(.+)$', line)
                     if bucket_match:
                         s3_bucket = bucket_match.groups()[0].strip()
 
-                    transfer_match = re.search(r's3_transfer_bucket\s*=\s*(.+)$', line)
+                    transfer_match = re.search(r's3.transfer_bucket\s*=\s*(.+)$', line)
                     if transfer_match:
                         s3_transfer_bucket = transfer_match.groups()[0].strip()
 
