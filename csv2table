@@ -97,6 +97,10 @@ parser.add_argument("--keep-going", help=("read the entire file instead of the "
                                           "first two rows, trading performance "
                                           "for better type detection"),
                     action="store_true", default=False)
+parser.add_argument("--primary-key", help=("column(s) to make part of the "
+                                          "primary key"))
+parser.add_argument("--serial-column", help=("add serial column of the given "
+                                             "name"))
 
 args = parser.parse_args()
 
@@ -552,7 +556,28 @@ if not args.no_create:
     if args.cine:
         table_clause += " if not exists"
     print("{} {} (".format(table_clause, name_clause))
-    print(columns_clause)
+
+    if args.serial_column:
+        print('    "{}" serial,'.format(args.serial_column))
+
+    print(columns_clause + ("," if args.primary_key else ""))
+
+    if args.primary_key:
+        pkey = [c.strip() for c in args.primary_key.split(",") if c.strip()]
+
+        pkey_clause = []
+
+        if args.serial_column in pkey:
+            pkey_clause.append(args.serial_column)
+
+        for field in fields:
+            if field in pkey or header_mapping[field] in pkey:
+                col = header_mapping[field]
+                pkey_clause.append(col)
+
+        pkey_clause = "    primary key (" + ",".join(pkey_clause) + ")"
+        print(pkey_clause)
+
     print(");")
 
 # print out our truncate statement
