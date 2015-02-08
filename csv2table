@@ -137,6 +137,15 @@ redshift_date_format = "YYYY-MM-DD"
 redshift_time_format = "HH:MI:SS"
 redshift_datetime_format = "YYYY-MM-DD HH:MI:SS"
 
+# identifier quoting function
+def quote_ident(name):
+    name = name.replace('"', '""')
+    return '"' + name + '"'
+
+# escape helper
+def escape(val):
+    return val.replace("'", "''")
+
 # name cleaner function
 empties = ""
 def clean_name(name):
@@ -510,26 +519,28 @@ if args.redshift:
 # generate our name clause
 name_clause = ""
 if args.schema:
-    name_clause += '"{}".'.format(args.schema)
-name_clause += '"{}"'.format(table_name)
+    name_clause += quote_ident(args.schema) + "."
+name_clause += quote_ident(table_name)
 
 # generate our columns clause for table create
 columns_fragments = []
 for column_name, column_type in columns:
     if column_type == EMPTY:
         column_type = TEXT
-    columns_fragments.append('    "{}" {}'.format(column_name, column_type))
+    columns_fragments.append('    {} {}'.format(quote_ident(column_name),
+                                                column_type))
 
 # if we requested a column containing the filename, add that in
 if args.file_column is not None:
-    file_column_frag = ("    \"{}\" text default '{}'"
-                        .format(args.file_column, args.file))
+    file_column_frag = ("    {} text default '{}'"
+                        .format(quote_ident(args.file_column),
+                                escape(args.file)))
     columns_fragments = [file_column_frag] + columns_fragments
 
 columns_clause = ",\n".join(columns_fragments)
 
 # generate the target clause to emit with the copy statement
-targets_clause = ", ".join(['"{}"'.format(c[0]) for c in columns])
+targets_clause = ", ".join([quote_ident(c[0]) for c in columns])
 
 # maybe print a begin
 if args.transaction:
@@ -537,16 +548,16 @@ if args.transaction:
 
 # maybe print our a schema create
 if args.create_schema:
-    print('create schema "{}";'.format(args.schema))
+    print("create schema {};".format(quote_ident(args.schema)))
 
 # maybe print out a drop
 if args.drop and not args.no_create:
 
     # redshift doesn't know about if exists, sigh
     if args.redshift:
-        print('drop table {};'.format(name_clause))
+        print("drop table {};".format(name_clause))
     else:
-        print('drop table if exists {};'.format(name_clause))
+        print("drop table if exists {};".format(name_clause))
 
 # print out our table create statement
 if not args.no_create:
@@ -558,7 +569,7 @@ if not args.no_create:
     print("{} {} (".format(table_clause, name_clause))
 
     if args.serial_column:
-        print('    "{}" serial,'.format(args.serial_column))
+        print('    {} serial,'.format(quote_ident(args.serial_column)))
 
     print(columns_clause + ("," if args.primary_key else ""))
 
@@ -568,14 +579,14 @@ if not args.no_create:
         pkey_clause = []
 
         if args.serial_column in pkey:
-            pkey_clause.append(args.serial_column)
+            pkey_clause.append(quote_ident(args.serial_column))
 
         for field in fields:
             if field in pkey or header_mapping[field] in pkey:
                 col = header_mapping[field]
-                pkey_clause.append(col)
+                pkey_clause.append(quote_ident(col))
 
-        pkey_clause = "    primary key (" + ",".join(pkey_clause) + ")"
+        pkey_clause = "    primary key (" + ", ".join(pkey_clause) + ")"
         print(pkey_clause)
 
     print(");")
@@ -592,24 +603,26 @@ if args.copy:
         options = ("'{}' with credentials 'aws_access_key_id={};aws_secret_access_key={}' "
                    "csv ignoreheader 1 delimiter '{}' quote '{}' dateformat "
                    "'{}' timeformat '{}'"
-                   .format(s3_path, aws_access_key_id, aws_secret_access_key,
-                           delimiter, args.quote, redshift_date_format,
+                   .format(escape(s3_path), escape(aws_access_key_id),
+                           escape(aws_secret_access_key),
+                           escape(delimiter), escape(args.quote),
+                           redshift_date_format,
                            redshift_datetime_format))
         if args.gzip:
             options += " gzip"
     else:
         if args.gzip:
-            start = "program 'gunzip < {}'".format(args.file)
+            start = "program 'gunzip < {}'".format(escape(args.file))
         else:
-            start = "'{}'".format(args.file)
+            start = "'{}'".format(escape(args.file))
         options = start + (" with csv header delimiter '{}' quote '{}'"
-                           .format(delimiter, args.quote))
+                           .format(escape(delimiter), escape(args.quote)))
 
     copy = "copy"
     if args.backslash:
         copy = r'\copy'
 
-    print('{} {}({}) from {};'.format(copy, name_clause, targets_clause, options))
+    print("{} {}({}) from {};".format(copy, name_clause, targets_clause, options))
 
 # maybe print out a commit
 if args.transaction:
