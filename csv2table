@@ -93,10 +93,10 @@ parser.add_argument("--missing-headers",
                     action="store_true", default=False)
 parser.add_argument("--cine", help="create if not exists when creating a table",
                     action="store_true", default=False)
-parser.add_argument("--keep-going", help=("read the entire file instead of the "
+parser.add_argument("--keep-going", help=("read the N rows instead of the "
                                           "first two rows, trading performance "
                                           "for better type detection"),
-                    action="store_true", default=False)
+                    type=int, metavar="N", default=None)
 parser.add_argument("--primary-key", help=("column(s) to make part of the "
                                           "primary key"))
 parser.add_argument("--serial-column", help=("add serial column of the given "
@@ -323,7 +323,7 @@ if args.file_column is not None:
 
 columns = []
 
-for record in reader:
+for i, record in enumerate(reader):
     fields = reader.fieldnames
 
     if not header_mapping:
@@ -408,7 +408,7 @@ for record in reader:
                     columns[i] = (column_name, TEXT)
 
     # enough of this boring crap
-    if not args.keep_going:
+    if not args.keep_going or args.keep_going < i:
         break
 
 # if we're using gzip, kill the process we started
