@@ -236,6 +236,11 @@ def get_type(value, args):
         "%H:%M:%S %Z",
         "%I:%M:%S %p",
         "%I:%M:%S %P",
+        "%H:%M:%S.%f",
+        "%H:%M:%S.%f %z",
+        "%H:%M:%S.%f %Z",
+        "%I:%M:%S.%f %p",
+        "%I:%M:%S.%f %P",
         "%H:%M",
     ]
 
@@ -253,6 +258,11 @@ def get_type(value, args):
         "%H:%M:%S %Z": "HH:MM:SS", # XXX
         "%I:%M:%S %p": "HH12:MM:SS AM",
         "%I:%M:%S %P": "HH12:MM:SS AM",
+        "%H:%M:%S.%f": "HH:MM:SS",
+        "%H:%M:%S.%f %z": "HH:MM:SS", # XXX
+        "%H:%M:%S.%f %Z": "HH:MM:SS", # XXX
+        "%I:%M:%S.%f %p": "HH12:MM:SS AM",
+        "%I:%M:%S.%f %P": "HH12:MM:SS AM",
         "%H:%M": "HH:MM",
     }
 
