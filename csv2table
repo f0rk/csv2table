@@ -59,6 +59,7 @@ parser.add_argument("--drop", "-x", help="drop table first",
 parser.add_argument("--truncate", help="truncate table first",
                     action="store_true", default=False)
 parser.add_argument("--skip-parsing", help="skip type parsing for cols")
+parser.add_argument("--parse-only", help="attempt type parsing only for cols")
 parser.add_argument("--big-integer", "-b", help="use bigint instead of int",
                     default=False, action="store_true")
 parser.add_argument("--no-create", "-z", help="don't issue create table",
@@ -193,6 +194,12 @@ skip_type_parsing = []
 if args.skip_parsing:
     cols = args.skip_parsing.split(",")
     skip_type_parsing = [c.strip() for c in cols]
+
+# determine any columns which we should only type parse
+parse_only_cols = None
+if args.parse_only:
+    cols = args.parse_only.split(",")
+    parse_only_cols = [c.strip() for c in cols]
 
 # get a handle on things
 if args.gzip:
@@ -427,6 +434,14 @@ for i, record in enumerate(reader):
                 column_type, is_array = EMPTY, False
             else:
                 column_type, is_array = get_type(value, args)
+
+        # but un-type the given columns if parse only was requested
+        if parse_only_cols is not None:
+            if field not in parse_only_cols:
+                if not value:
+                    column_type, is_array = EMPTY, False
+                else:
+                    column_type, is_array = TEXT, False
 
         if args.missing_headers:
             column_name = "col_{}".format(i)
