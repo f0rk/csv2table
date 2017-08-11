@@ -4,6 +4,7 @@ import os
 import re
 import csv
 import sys
+import json
 import decimal
 import datetime
 import argparse
@@ -19,6 +20,8 @@ DATE = "date"
 DATETIME = "timestamp"
 DATETIMETZ = "timestamptz"
 BIGINTEGER = "biginteger"
+JSON = "json"
+JSONB = "jsonb"
 EMPTY = None # special case, used as placeholder for null upgrades
 
 
@@ -104,6 +107,11 @@ parser.add_argument("--serial-column", help=("add serial column of the given "
                                              "name"))
 parser.add_argument("--array", help="attempt to detect and create array columns",
                     action="store_true", default=False)
+group = parser.add_mutually_exclusive_group()
+group.add_argument("--json", help="attempt to detect and create json columns",
+                   action="store_true", default=False)
+group.add_argument("--jsonb", help="attempt to detect and create jsonb columns",
+                   action="store_true", default=False)
 
 args = parser.parse_args()
 
@@ -228,6 +236,11 @@ def get_type(value, args):
         "%H:%M:%S %Z",
         "%I:%M:%S %p",
         "%I:%M:%S %P",
+        "%H:%M:%S.%f",
+        "%H:%M:%S.%f %z",
+        "%H:%M:%S.%f %Z",
+        "%I:%M:%S.%f %p",
+        "%I:%M:%S.%f %P",
         "%H:%M",
     ]
 
@@ -245,6 +258,11 @@ def get_type(value, args):
         "%H:%M:%S %Z": "HH:MM:SS", # XXX
         "%I:%M:%S %p": "HH12:MM:SS AM",
         "%I:%M:%S %P": "HH12:MM:SS AM",
+        "%H:%M:%S.%f": "HH:MM:SS",
+        "%H:%M:%S.%f %z": "HH:MM:SS", # XXX
+        "%H:%M:%S.%f %Z": "HH:MM:SS", # XXX
+        "%I:%M:%S.%f %p": "HH12:MM:SS AM",
+        "%I:%M:%S.%f %P": "HH12:MM:SS AM",
         "%H:%M": "HH:MM",
     }
 
@@ -332,6 +350,28 @@ def get_type(value, args):
             return NUMERIC, False
         except decimal.InvalidOperation:
             pass
+
+    # json/jsonb
+    if args.json or args.jsonb:
+
+        # yes, techinically more values are accepted. but then we'll try to
+        # convert any number to json, and that's probably not what we want
+        possibly_json = (
+            (value.startswith("{") and value.endswith("}"))
+            or (value.startswith("[") and value.endswith("]"))
+        )
+
+        if possibly_json:
+            try:
+                json.loads(value)
+                if args.json:
+                    return JSON, False
+                elif args.jsonb:
+                    return JSONB, False
+                else:
+                    raise Exception("Implementation Error")
+            except ValueError:
+                pass
     
     # we got nothing
     return TEXT, False
