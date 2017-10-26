@@ -8,8 +8,14 @@ import json
 import decimal
 import datetime
 import argparse
-import urlparse
-import StringIO
+try:
+    from urlparse import urlparse
+except ImportError:
+    from urllib.parse import urlparse
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 import subprocess
 
 
@@ -164,6 +170,7 @@ def clean_name(name):
     name = name.strip()
     name = re.sub(r'[^a-zA-Z0-9_]', "_", name)
     name = re.sub(r'_+', "_", name)
+    name = re.sub(r'_$', "", name)
     if args.lower:
         name = name.lower()
     if not name:
@@ -203,7 +210,11 @@ if args.parse_only:
 
 # get a handle on things
 if args.gzip:
-    process = subprocess.Popen(["zcat", args.file], stdout=subprocess.PIPE)
+    process = subprocess.Popen(
+        ["zcat", args.file],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+    )
     fp = process.stdout
 else:
     fp = open(args.file, "rU")
@@ -215,7 +226,7 @@ def parse_array(value):
 
     value = re.sub(r'^[{](.*)[}]$', r'\1', value)
 
-    array_fp = StringIO.StringIO(value)
+    array_fp = StringIO(value)
     array_reader = csv.reader(array_fp)
     array = array_reader.next()
 
