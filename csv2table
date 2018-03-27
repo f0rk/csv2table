@@ -407,6 +407,13 @@ reader = csv.DictReader(fp, delimiter=delimiter, quotechar=args.quote)
 # figure out the column name and types
 seen_column_names = {}
 
+# try to strip out the unicode bom, thanks new excel
+def strip_bom(field):
+    encoded_field = field.encode("utf-8")
+    if encoded_field[:3] == b"\xef\xbb\xbf":
+        return encoded_field[3:].decode("utf-8")
+    return field
+
 # if a file name column was requested, pre-seed that name here
 if args.file_column is not None:
     seen_column_names[args.file_column] = 0
@@ -419,10 +426,10 @@ for i, record in enumerate(reader):
     if not header_mapping:
         if args.mogrify:
             for field in fields:
-                header_mapping[field] = clean_name(field)
+                header_mapping[field] = clean_name(strip_bom(field))
         else:
             # strip quotes to work with less chance of failure.
-            header_mapping = {f: f.replace('"', "") for f in fields}
+            header_mapping = {f: strip_bom(f).replace('"', "") for f in fields}
 
     # by default, every column will be unset
     if not columns:
