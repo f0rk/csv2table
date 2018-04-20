@@ -409,9 +409,16 @@ seen_column_names = {}
 
 # try to strip out the unicode bom, thanks new excel
 def strip_bom(field):
-    encoded_field = field.encode("utf-8")
-    if encoded_field[:3] == b"\xef\xbb\xbf":
-        return encoded_field[3:].decode("utf-8")
+    try:
+        field_bytes = bytes(field)
+    except TypeError as tex:
+        if "string argument without an encoding" not in str(tex):
+            raise
+        else:
+            return field
+
+    if field_bytes[:3] == b"\xef\xbb\xbf":
+        return field[3:]
     return field
 
 # if a file name column was requested, pre-seed that name here
