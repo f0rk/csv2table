@@ -3,6 +3,7 @@
 import os
 import re
 import csv
+import signal
 import sys
 import json
 import decimal
@@ -30,6 +31,8 @@ JSON = "json"
 JSONB = "jsonb"
 EMPTY = None # special case, used as placeholder for null upgrades
 
+# ignore pipe errors using head, etc
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 # without this, we may encounter fields larger than can be read
 csv.field_size_limit(sys.maxsize)
