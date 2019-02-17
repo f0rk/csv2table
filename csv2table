@@ -618,7 +618,7 @@ if args.redshift:
     # our bucket and key name components, because the bucket may have been
     # specified with a prefix
     s3_path = "s3://" + os.path.join(s3_bucket, os.path.basename(args.file))
-    parsed = urlparse.urlparse(s3_path)
+    parsed = urlparse(s3_path)
     real_bucket = parsed.netloc
     real_key = parsed.path.lstrip("/")
 
