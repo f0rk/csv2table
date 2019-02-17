@@ -631,18 +631,22 @@ if args.redshift:
     # if redshift upload was requested, attempt to upload the file
     if args.redshift_upload:
 
-        # we import boto here so it's not always required
-        from boto.s3.connection import S3Connection
+        # we import botocore here so it's not always required
+        import botocore.session
 
-        # connect to s3
-        conn = S3Connection(aws_access_key_id, aws_secret_access_key)
+        bs = botocore.session.get_session()
+        s3_client = bs.create_client(
+            service_name="s3",
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+        )
 
-        # get bukkit
-        bucket = conn.get_bucket(real_bucket)
-
-        # make key, put file
-        key = bucket.new_key(real_key)
-        key.set_contents_from_filename(args.file)
+        with open(args.file, "rb") as upload_fp:
+            s3_client.put_object(
+                Bucket=real_bucket,
+                Key=real_key,
+                Body=upload_fp,
+            )
 
 # generate our name clause
 name_clause = ""
