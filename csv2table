@@ -231,7 +231,10 @@ def parse_array(value):
 
     array_fp = StringIO(value)
     array_reader = csv.reader(array_fp)
-    array = array_reader.next()
+    try:
+        array = next(array_reader)
+    except StopIteration:
+        raise ValueError("not an array")
 
     return array
 
