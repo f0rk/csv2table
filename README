@@ -5,6 +5,12 @@ Call csv2table with -h for help.
 Requires python. If you wish to use this command with redshift, the botocore
 library must be installed as well.
 
+Installation:
+```
+curl https://raw.githubusercontent.com/f0rk/csv2table/master/csv2table > "$HOME/bin/csv2table"
+chmod +x "$HOME/bin/csv2table"
+```
+
 Examples:
 
 Imagine we have a file, colors.csv, with the following data:
@@ -152,4 +158,3 @@ create table "ryan"."colors" (
     "add_date" text
 );
 copy "ryan"."colors"("id", "color", "color_name", "description", "hex_", "inventory", "add_date") from 's3://ryan/colors.csv' with credentials 'aws_access_key_id=XXXX;aws_secret_access_key=XXXX' csv ignoreheader 1 delimiter ',' quote '"';
-
