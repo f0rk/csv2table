@@ -437,7 +437,7 @@ if args.file_column is not None:
 
 columns = []
 
-for i, record in enumerate(reader):
+for record_idx, record in enumerate(reader):
     fields = reader.fieldnames
 
     if not header_mapping:
@@ -536,7 +536,7 @@ for i, record in enumerate(reader):
                     columns[i] = (column_name, TEXT, is_array)
 
     # enough of this boring crap
-    if not args.keep_going or args.keep_going < i:
+    if not args.keep_going or args.keep_going < record_idx:
         break
 
 # if we're using gzip, kill the process we started
